@@ -1,7 +1,7 @@
 plugin:
   backend: go-plugin
   go-plugin:
-    folder: ../plugins/bin/
+    folder: ./plugins/
 ta-store:
   backend: memory
 en-store:
@@ -12,4 +12,4 @@ po-agent:
   backend: opa
 vts-grpc:
   server:
-    addr: vts:50051
+    addr: 127.0.0.1:50051

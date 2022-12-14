@@ -1,8 +1,10 @@
 corim-nitro-decoder
 corim-psa-decoder
-provisioning
+provisioning/provisioning
 scheme-aws-nitro
 scheme-psa-iot
 proxy_attestation_server
-vts
+vts/vts
 *.cbor
+TestCaCert.pem
+TestCaKey.pem

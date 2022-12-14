@@ -1,0 +1,39 @@
+{
+  "lang": "en-GB",
+  "tag-identity": {
+    "id": "fb6789c3-147d-4e5f-8be0-4452b93c3767",
+    "version": 0
+  },
+  "entities": [
+    {
+      "name": "AWS",
+      "regid": "https://aws.amazon.com",
+      "roles": [
+        "tagCreator",
+        "creator",
+        "maintainer"
+      ]
+    }
+  ],
+  "triples": {
+    "attester-verification-keys": [
+      {
+        "environment": {
+          "class": {
+            "id": {
+              "type": "uuid",
+              "value": "51d1a77a-9908-49e0-92df-e9c872a9b0bd"
+            },
+            "vendor": "AWS",
+            "model": "Nitro"
+          }
+        },
+        "verification-keys": [
+          {
+            "key": "<CERTIFICATE>"
+          }
+        ]
+      }
+    ]
+  }
+}

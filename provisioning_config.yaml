@@ -1,6 +1,0 @@
-provisioning:
-  plugin-dir: ./plugins/bin/
-  list-addr: provisioning:8888
-vts-grpc:
-  vts-server:
-    addr: vts:50051

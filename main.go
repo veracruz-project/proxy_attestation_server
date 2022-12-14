@@ -1,3 +1,13 @@
+//! Proxy Attestation Server for the Veracruz project
+//!
+//! ## Authors
+//!
+//! The Veracruz Development Team.
+//!
+//! ## Licensing and copyright notice
+//!
+//! See the `LICENSE_MIT.markdown` file in the Veracruz root directory for
+//! information on licensing and copyright.
 package main
 
 import (
@@ -19,11 +29,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dreemkiller/proxy_attestation_server/session"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/moogar0880/problems"
-	"github.com/setrofim/viper"
+	"github.com/spf13/viper"
+	"github.com/veracruz-project/proxy_attestation_server/session"
 	"github.com/veraison/services/proto"
 	"github.com/veraison/services/vtsclient"
 )
@@ -46,8 +56,7 @@ const (
 )
 
 var (
-	caCert x509.Certificate
-	//caPrivateKey ecdsa.PrivateKey
+	caCert       x509.Certificate
 	caPrivateKey crypto.Signer
 )
 
@@ -162,7 +171,7 @@ const (
 )
 
 func (o *ProxyHandler) genericRouter(c *gin.Context, platform PlatformType) {
-	id, token_data, csr_data, err := extractIdTokenCsr(c)
+	id, tokenData, csr_data, err := extractIdTokenCsr(c)
 	if err != nil {
 		reportProblem(c,
 			http.StatusBadRequest,
@@ -184,7 +193,7 @@ func (o *ProxyHandler) genericRouter(c *gin.Context, platform PlatformType) {
 
 	token := &proto.AttestationToken{
 		TenantId:  tenantID,
-		Data:      token_data,
+		Data:      tokenData,
 		MediaType: mediaType,
 	}
 
@@ -193,6 +202,7 @@ func (o *ProxyHandler) genericRouter(c *gin.Context, platform PlatformType) {
 		token,
 	)
 	if err != nil {
+		fmt.Printf("GetAttestation failed:%v\n", err)
 		reportProblem(c,
 			http.StatusInternalServerError,
 			fmt.Sprintf("genericRouter: o.vtsClient.GetAttestation failed:%v", err))
@@ -334,16 +344,15 @@ func convertCSRIntoCert(csr *x509.CertificateRequest, enclave_hash []byte) ([]by
 
 	clientCert, err := x509.CreateCertificate(rand.Reader, &clientCertTemplate, &caCert, csr.PublicKey, caPrivateKey)
 	if err != nil {
-		return nil, fmt.Errorf("convertCSRIntoCert: Failed to generate certificate:%v", err)
+		return nil, fmt.Errorf("x.509.CreateCertificate failed::%w", err)
 	}
 	return clientCert, nil
 }
 
-func loadCaCert() error {
-	filename := "./CACert.pem"
+func loadCaCert(filename string) error {
 	pem_data, err := os.ReadFile(filename)
 	if err != nil {
-		return fmt.Errorf("os.ReadFile failed to open %v for reading:%v", filename, err)
+		return fmt.Errorf("os.ReadFile failed to open %v for reading:%w", filename, err)
 	}
 	block, _ := pem.Decode(pem_data)
 	if block == nil {
@@ -358,8 +367,7 @@ func loadCaCert() error {
 	return nil
 }
 
-func loadCaKey() error {
-	filename := "./CAKey.pem"
+func loadCaKey(filename string) error {
 	pem_data, err := os.ReadFile(filename)
 	if err != nil {
 		return fmt.Errorf("os.ReadFile failed to open %v for reading:%v", filename, err)
@@ -377,18 +385,31 @@ func loadCaKey() error {
 	return nil
 }
 
-func main() {
-	fmt.Println("Hello, World!")
+func createRouter(proxyHandler *ProxyHandler) (*gin.Engine, error) {
+	router := gin.New()
 
-	err := loadCaCert()
+	router.Use(gin.Logger())
+	router.Use(gin.Recovery())
+
+	router.Group("/proxy/v1").
+		POST("/Start", proxyHandler.Start).
+		POST("PSA/:id", proxyHandler.PsaRouter).
+		POST("Nitro/:id", proxyHandler.NitroRouter)
+	return router, nil
+}
+
+func main() {
+	fmt.Println("Starting Proxy Attestation Server")
+
+	err := loadCaCert("./CACert.pem")
 	if err != nil {
-		fmt.Printf("loadCaCert failed:%v\n", err)
+		fmt.Printf("Proxy Attestation Server: loadCaCert failed:%v\n", err)
 		return
 	}
 
-	err = loadCaKey()
+	err = loadCaKey("./CAKey.pem")
 	if err != nil {
-		fmt.Printf("loadCaKey failed:%v\n", err)
+		fmt.Printf("Proxy Attestation Server: loadCaKey failed:%v\n", err)
 		return
 	}
 
@@ -400,23 +421,23 @@ func main() {
 	session_manager := session.NewSessionManager()
 
 	vtsClientCfg := viper.New()
-	vtsClientCfg.SetDefault("vts-server.addr", "127.0.0.1:50051")
-	vtsClient := vtsclient.NewGRPC(vtsClientCfg)
+	vtsClientCfg.SetDefault("vts.server-addr", "127.0.0.1:50051")
+	vtsClient := vtsclient.NewGRPC()
+	if err = vtsClient.Init(vtsClientCfg); err != nil {
+		fmt.Printf("vtxClient.Init failed:%v\n", err)
+		return
+	}
 
 	proxyHandler := NewProxyHandler(session_manager, vtsClient)
 
-	router := gin.New()
-
-	router.Use(gin.Logger())
-	router.Use(gin.Recovery())
-
-	router.Group("/proxy/v1").
-		POST("/Start", proxyHandler.Start).
-		POST("PSA/:id", proxyHandler.PsaRouter).
-		POST("Nitro/:id", proxyHandler.NitroRouter)
+	router, err := createRouter(proxyHandler)
+	if err != nil {
+		fmt.Printf("Failed to create router:%v\n", err)
+		return
+	}
 
 	err = router.Run(listenAddress)
 	if err != nil {
-		fmt.Printf("Router failed to run:%v\n", err)
+		fmt.Printf("Proxy Attestation Server: Router failed to run:%v\n", err)
 	}
 }
